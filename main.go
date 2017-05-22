@@ -1,16 +1,16 @@
 package main
 
 import (
-	redis "github.com/prima101112/go-redis-server"
+	redis "github.com/tokopedia/go-redis-server"
 	"github.com/tokopedia/redisgrator/src/config"
-	"github.com/tokopedia/redisgrator/src/redishandler"
 	"github.com/tokopedia/redisgrator/src/redisconnection"
+	"github.com/tokopedia/redisgrator/src/redishandler"
 	"log"
-	"time"
 	"os"
+	"time"
 )
 
-func init()  {
+func init() {
 	ok := config.ReadConfig("./files/config/")
 	if !ok {
 		log.Fatal("failed to read config")
@@ -30,7 +30,7 @@ func main() {
 	if err != nil {
 		log.Println("problem starting redis masquerader server.", err)
 	} else {
-		log.Printf("starting fake redis server at port :%d\n",config.Cfg.General.Port)
+		log.Printf("starting fake redis server at port :%d\n", config.Cfg.General.Port)
 		log.Fatal(server.ListenAndServe())
 	}
 }

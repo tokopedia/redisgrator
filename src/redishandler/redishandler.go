@@ -3,7 +3,7 @@ package redishandler
 import (
 	"errors"
 	"fmt"
-	redis "github.com/prima101112/go-redis-server"
+	redis "github.com/tokopedia/go-redis-server"
 	"github.com/tokopedia/redisgrator/src/config"
 	"github.com/tokopedia/redisgrator/src/redisconnection"
 	"time"
