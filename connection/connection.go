@@ -1,10 +1,11 @@
-package redisconnection
+package connection
 
 import (
-	"github.com/garyburd/redigo/redis"
-	"time"
 	"log"
 	"os"
+	"time"
+
+	"github.com/garyburd/redigo/redis"
 )
 
 type redisPool interface {
@@ -14,8 +15,8 @@ type redisPool interface {
 }
 
 type RedisPoolHost struct {
-	Origin    redisPool
-	Destination  redisPool
+	Origin      redisPool
+	Destination redisPool
 }
 
 var RedisPoolConnection *RedisPoolHost
@@ -51,7 +52,7 @@ func RedisConn(orig, dest string) *RedisPoolHost {
 		log.Fatal("failed to connect redis origin : ", errOrg)
 		os.Exit(0)
 	}
-	_, errDest:= redisPoolH.Destination.Get().Do("PING")
+	_, errDest := redisPoolH.Destination.Get().Do("PING")
 	if errDest != nil {
 		log.Fatal("failed to connect redis destination : ", errDest)
 		os.Exit(0)

@@ -1,13 +1,14 @@
 package main
 
 import (
-	redis "github.com/tokopedia/go-redis-server"
-	"github.com/tokopedia/redisgrator/src/config"
-	"github.com/tokopedia/redisgrator/src/redisconnection"
-	"github.com/tokopedia/redisgrator/src/redishandler"
 	"log"
 	"os"
 	"time"
+
+	redis "github.com/tokopedia/go-redis-server"
+	"github.com/tokopedia/redisgrator/config"
+	"github.com/tokopedia/redisgrator/connection"
+	"github.com/tokopedia/redisgrator/handler"
 )
 
 func init() {
@@ -16,12 +17,12 @@ func init() {
 		log.Fatal("failed to read config")
 		os.Exit(0)
 	}
-	redisconnection.RedisPoolConnection = redisconnection.RedisConn(config.Cfg.RedisHost.Origin, config.Cfg.RedisHost.Destination)
+	connection.RedisPoolConnection = connection.RedisConn(config.Cfg.RedisHost.Origin, config.Cfg.RedisHost.Destination)
 }
 
 func main() {
 	//define redis server handler
-	handler := &redishandler.RedisHandler{Start: time.Now()}
+	handler := &handler.RedisHandler{Start: time.Now()}
 	//define default conf
 	conf := redis.DefaultConfig().Host("0.0.0.0").Port(config.Cfg.General.Port).Handler(handler)
 	//create server with given config

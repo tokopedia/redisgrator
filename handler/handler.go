@@ -1,12 +1,13 @@
-package redishandler
+package handler
 
 import (
 	"errors"
 	"fmt"
-	redis "github.com/tokopedia/go-redis-server"
-	"github.com/tokopedia/redisgrator/src/config"
-	"github.com/tokopedia/redisgrator/src/redisconnection"
 	"time"
+
+	redis "github.com/tokopedia/go-redis-server"
+	"github.com/tokopedia/redisgrator/config"
+	"github.com/tokopedia/redisgrator/connection"
 )
 
 type RedisHandler struct {
@@ -16,8 +17,8 @@ type RedisHandler struct {
 
 // GET
 func (h *RedisHandler) Get(key string) ([]byte, error) {
-	origConn := redisconnection.RedisPoolConnection.Origin.Get()
-	destConn := redisconnection.RedisPoolConnection.Destination.Get()
+	origConn := connection.RedisPoolConnection.Origin.Get()
+	destConn := connection.RedisPoolConnection.Destination.Get()
 
 	v, err := origConn.Do("GET", key)
 	//for safety handle v nil and v empty string
@@ -46,7 +47,7 @@ func (h *RedisHandler) Get(key string) ([]byte, error) {
 
 // SET
 func (h *RedisHandler) Set(key string, value []byte) ([]byte, error) {
-	destConn := redisconnection.RedisPoolConnection.Destination.Get()
+	destConn := connection.RedisPoolConnection.Destination.Get()
 
 	v, err := destConn.Do("SET", key, value)
 	if err != nil {
