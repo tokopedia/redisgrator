@@ -13,6 +13,8 @@ type RedisHostCfg struct {
 type General struct {
 	Port             int
 	SetToDestWhenGet bool
+	MoveHash         bool
+	MoveSet          bool
 }
 
 type Config struct {
