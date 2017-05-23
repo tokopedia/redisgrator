@@ -74,11 +74,13 @@ func (h *RedisHandler) Hexists(key, field string) (int, error) {
 	destConn := connection.RedisPoolConnection.Destination.Get()
 
 	v, err := origConn.Do("HEXISTS", key, field)
-
+	if err != nil {
+		return 0, errors.New("HEXISTS : err when check exist in origin : " + err.Error())
+	}
 	//check first is it really not error from origin
 	int64v, ok := v.(int64)
 	if ok == false {
-		return 0, errors.New("value not int from origin")
+		return 0, errors.New("HEXISTS : value not int from origin")
 	}
 
 	//for safety handle v nil and int64v == 0 int
