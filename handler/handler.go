@@ -43,9 +43,35 @@ func (h *RedisHandler) Get(key string) ([]byte, error) {
 
 	strv, ok := v.([]byte)
 	if ok == false {
+		if (strv == nil){
+			return nil, nil
+		}
 		return nil, errors.New("GET : keys not found")
 	}
 	return strv, nil
+}
+
+// DEL
+func (h *RedisHandler) Del(key string) (int, error) {
+	origConn := connection.RedisPoolConnection.Origin.Get()
+	destConn := connection.RedisPoolConnection.Destination.Get()
+
+	v, err := origConn.Do("DEL", key)
+	int64v, ok := v.(int64)
+	if err != nil || int64v == 0 {
+		v, err = destConn.Do("DEL", key)
+		if err != nil {
+			return 0, errors.New("DEL : " + err.Error())
+		}
+	}
+
+	//check first is it really not error from destination
+	int64v, ok = v.(int64)
+	if ok == false {
+		return 0, errors.New("DEL : value not int from destination")
+	}
+	intv := int(int64v)
+	return intv, nil
 }
 
 // SET
@@ -74,13 +100,9 @@ func (h *RedisHandler) Hexists(key, field string) (int, error) {
 	destConn := connection.RedisPoolConnection.Destination.Get()
 
 	v, err := origConn.Do("HEXISTS", key, field)
-
 	//check first is it really not error from origin
 	int64v, ok := v.(int64)
-	if ok == false {
-		return 0, errors.New("value not int from origin")
-	}
-
+	
 	//for safety handle v nil and int64v == 0 int
 	if err != nil || v == nil || int64v == 0 {
 		v, err = destConn.Do("HEXISTS", key, field)
