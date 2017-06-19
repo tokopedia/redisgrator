@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
-	
+
 	redis "github.com/tokopedia/go-redis-server"
 	"github.com/tokopedia/redisgrator/config"
 	"github.com/tokopedia/redisgrator/connection"
@@ -68,7 +68,7 @@ func (h *RedisHandler) Del(key string) (int, error) {
 	//check first is it really not error from destination
 	int64v, ok = v.(int64)
 	if ok == false {
-		return 0, errors.New("HEXISTS : value not int from destination")
+		return 0, errors.New("DEL : value not int from destination")
 	}
 	intv := int(int64v)
 	return intv, nil
@@ -100,15 +100,9 @@ func (h *RedisHandler) Hexists(key, field string) (int, error) {
 	destConn := connection.RedisPoolConnection.Destination.Get()
 
 	v, err := origConn.Do("HEXISTS", key, field)
-	if err != nil {
-		return 0, errors.New("HEXISTS : err when check exist in origin : " + err.Error())
-	}
 	//check first is it really not error from origin
 	int64v, ok := v.(int64)
-	if ok == false {
-		return 0, errors.New("HEXISTS : value not int from origin")
-	}
-
+	
 	//for safety handle v nil and int64v == 0 int
 	if err != nil || v == nil || int64v == 0 {
 		v, err = destConn.Do("HEXISTS", key, field)
