@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	ok := config.ReadConfig("./files/config/")
+	ok := config.ReadConfig("./files/config/") || config.ReadConfig(".") || config.ReadConfig("/etc/")
 	if !ok {
 		log.Fatal("failed to read config")
 		os.Exit(0)
