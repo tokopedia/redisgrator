@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/gops/agent"
 	redis "github.com/tokopedia/go-redis-server"
 	"github.com/tokopedia/redisgrator/config"
 	"github.com/tokopedia/redisgrator/connection"
@@ -21,6 +22,10 @@ func init() {
 }
 
 func main() {
+	//gops for monitoring
+	if err := agent.Listen(nil); err != nil {
+		log.Fatal(err)
+	}
 	//define redis server handler
 	handler := &handler.RedisHandler{Start: time.Now()}
 	//define default conf
