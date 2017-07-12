@@ -13,10 +13,13 @@ import (
 )
 
 func init() {
-	ok := config.ReadConfig("./files/config/") || config.ReadConfig(".") || config.ReadConfig("/etc/")
+	ok := config.ReadConfig("/etc/")
 	if !ok {
-		log.Fatal("failed to read config")
-		os.Exit(0)
+		ok = config.ReadConfig("./files/config/")
+		if !ok {
+			log.Fatal("failed to read config")
+			os.Exit(0)
+		}
 	}
 	connection.RedisPoolConnection = connection.RedisConn(config.Cfg.RedisHost.Origin, config.Cfg.RedisHost.Destination)
 }
