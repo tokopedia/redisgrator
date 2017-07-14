@@ -242,6 +242,49 @@ func (h *RedisHandler) Sadd(set string, val []byte) (int, error) {
 	return intv, nil
 }
 
+// EXPIRE
+func (h *RedisHandler) Expire(key string, value int) (int, error) {
+	origConn := connection.RedisPoolConnection.Origin.Get()
+	destConn := connection.RedisPoolConnection.Destination.Get()
+	v, err := origConn.Do("EXPIRE", key, value)
+	if err != nil {
+		return 0, errors.New("EXPIRE : err when check exist in origin : " + err.Error())
+	}
+	if v.(int64) == 1 {
+		int64v, ok := v.(int64)
+		if ok == false {
+			return 0, errors.New("EXPIRE : value not int")
+		}
+		intv := int(int64v)
+		return intv, err
+	}
+
+	if v.(int64) == 0 {
+		v, err = destConn.Do("EXPIRE", key, value)
+		if err != nil {
+			return 0, errors.New("EXPIRE : err when check exist in origin : " + err.Error())
+		}
+		if v.(int64) == 1 || v.(int64) == 0 {
+			int64v, ok := v.(int64)
+			if ok == false {
+				return 0, errors.New("EXPIRE : value not int")
+			}
+			intv := int(int64v)
+			return intv, err
+		}
+	}
+
+	if err != nil {
+		return 0, errors.New("EXPIRE : err when set : " + err.Error())
+	}
+	int64v, ok := v.(int64)
+	intv := int(int64v)
+	if ok == false {
+		return 0, errors.New("EXPIRE : value not int")
+	}
+	return intv, nil
+}
+
 // INFO
 func (h *RedisHandler) Info() ([]byte, error) {
 	return []byte(fmt.Sprintf(
