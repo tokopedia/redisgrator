@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"log"
 
 	redis "github.com/tokopedia/go-redis-server"
 	"github.com/tokopedia/redisgrator/config"
@@ -20,20 +21,23 @@ func (h *RedisHandler) Get(key string) ([]byte, error) {
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
 
-	v, err := origConn.Do("GET", key)
+	v, err := destConn.Do("GET", key)
 	//for safety handle v nil and v empty string
 	if err != nil || v == nil || v == "" {
-		v, err = destConn.Do("GET", key)
+		v, err = origConn.Do("GET", key)
 		if err != nil {
 			return nil, errors.New("GET : " + err.Error())
 		}
 	} else {
-		if config.Cfg.General.SetToDestWhenGet {
+		if config.Cfg.General.Duplicate {
 			//if keys exist in origin move it too destination
 			_, err := destConn.Do("SET", key, v.([]byte))
 			if err != nil {
 				return nil, errors.New("GET : err when set on get : " + err.Error())
 			}
+		}
+
+		if config.Cfg.General.SetToDestWhenGet && !config.Cfg.General.Duplicate {
 			_, err = origConn.Do("DEL", key)
 			if err != nil {
 				return nil, errors.New("GET : err when del on get : " + err.Error())
@@ -83,9 +87,18 @@ func (h *RedisHandler) Set(key string, value []byte) ([]byte, error) {
 	if err != nil {
 		return nil, errors.New("SET : err when set : " + err.Error())
 	}
+
+	if config.Cfg.General.Duplicate {
+		v, err = origConn.Do("SET", key, value)
+		if err != nil {
+			return nil, errors.New("SET : err when set duplicate: " + err.Error())
+		}
+	}
 	//could ignore all in origin because set on dest already success
 	//del old key in origin
-	origConn.Do("DEL", key)
+	if !config.Cfg.General.Duplicate {
+		origConn.Do("DEL", key)
+	}
 
 	strv, ok := v.(string)
 	if ok == false {
@@ -99,13 +112,13 @@ func (h *RedisHandler) Hexists(key, field string) (int, error) {
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
 
-	v, err := origConn.Do("HEXISTS", key, field)
+	v, err := destConn.Do("HEXISTS", key, field)
 	//check first is it really not error from origin
 	int64v, ok := v.(int64)
 	
 	//for safety handle v nil and int64v == 0 int
 	if err != nil || v == nil || int64v == 0 {
-		v, err = destConn.Do("HEXISTS", key, field)
+		v, err = origConn.Do("HEXISTS", key, field)
 		if err != nil {
 			return 0, err
 		}
@@ -131,10 +144,10 @@ func (h *RedisHandler) Hget(key string, value []byte) ([]byte, error) {
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
 
-	v, err := origConn.Do("HGET", key, value)
+	v, err := destConn.Do("HGET", key, value)
 	//for safety handle v nil and v == ""
 	if err != nil || v == nil || v == "" {
-		v, err = destConn.Do("HGET", key, value)
+		v, err = origConn.Do("HGET", key, value)
 		if err != nil {
 			return nil, err
 		}
@@ -178,6 +191,14 @@ func (h *RedisHandler) Hset(key, field string, value []byte) (int, error) {
 	if err != nil {
 		return 0, errors.New("HSET : err when set : " + err.Error())
 	}
+
+	if config.Cfg.General.Duplicate {
+		v, err = origConn.Do("HSET", key, field, value)
+		if err != nil {
+			return 0, errors.New("HSET : err when set : " + err.Error())
+		}
+	}
+
 	int64v, ok := v.(int64)
 	intv := int(int64v)
 	if ok == false {
@@ -191,9 +212,9 @@ func (h *RedisHandler) Sismember(set, field string) (int, error) {
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
 
-	v, err := origConn.Do("SISMEMBER", set, field)
+	v, err := destConn.Do("SISMEMBER", set, field)
 	if err != nil || v.(int64) == 0 || v == nil {
-		v, err = destConn.Do("SISMEMBER", set, field)
+		v, err = origConn.Do("SISMEMBER", set, field)
 		if err != nil {
 			return 0, errors.New("SISMEMBER : err when sismember in destination : " + err.Error())
 		}
@@ -211,6 +232,32 @@ func (h *RedisHandler) Sismember(set, field string) (int, error) {
 		return 0, errors.New("SISMEMBER : value not int")
 	}
 	return intv, nil
+}
+
+// SMEMBERS
+func (h *RedisHandler) Smembers(set string) ([]interface{}, error) {
+	origConn := connection.RedisPoolConnection.Origin.Get()
+	destConn := connection.RedisPoolConnection.Destination.Get()
+	var empty []interface{}
+	v, err := destConn.Do("SMEMBERS", set)
+	if err != nil || v.([]interface{}) == nil || v == nil {
+		v, err = origConn.Do("SMEMBERS", set)
+		if err != nil {
+			return empty, errors.New("SMEMBERS : err when sismember in destination : " + err.Error())
+		}
+	} else {
+		//move all set
+		err := moveSet(set)
+		if err != nil {
+			return empty, err
+		}
+	}
+
+	result, ok := v.([]interface{})
+	if ok == false {
+		return empty, errors.New("SMEMBERS : value not int")
+	}
+	return result, nil
 }
 
 // SADD
@@ -234,12 +281,73 @@ func (h *RedisHandler) Sadd(set string, val []byte) (int, error) {
 	if err != nil {
 		return 0, errors.New("SADD : err when check exist in origin : " + err.Error())
 	}
+	if config.Cfg.General.Duplicate {
+		v, err = origConn.Do("SADD", set, val)
+		if err != nil {
+			return 0, errors.New("SADD : err when check exist in origin : " + err.Error())
+		}
+	}
+
 	int64v, ok := v.(int64)
 	intv := int(int64v)
 	if ok == false {
 		return 0, errors.New("SISMEMBER : value not int")
 	}
 	return intv, nil
+}
+
+
+// SREM
+func (h *RedisHandler) Srem(set string, val []byte) (int, error) {
+	origConn := connection.RedisPoolConnection.Origin.Get()
+	destConn := connection.RedisPoolConnection.Destination.Get()
+
+	v, err := destConn.Do("SREM", set, val)
+	if err != nil {
+		return 0, errors.New("SREM : err when check exist in origin : " + err.Error())
+	}
+
+	if config.Cfg.General.Duplicate {
+		v, err = origConn.Do("SREM", set, val)
+		if err != nil {
+			return 0, errors.New("SREM : err when check exist in origin : " + err.Error())
+		}
+	}
+	int64v, ok := v.(int64)
+	intv := int(int64v)
+	if ok == false {
+		return 0, errors.New("SREM : value not int")
+	}
+	return intv, nil
+}
+
+// SETEX
+func (h *RedisHandler) Setex(key string, value int, val string) ([]byte, error) {
+	origConn := connection.RedisPoolConnection.Origin.Get()
+	destConn := connection.RedisPoolConnection.Destination.Get()
+
+	v, err := destConn.Do("SETEX", key, value, val)
+	if err != nil {
+		return nil, errors.New("SETEX : err when set : " + err.Error())
+	}
+
+	if config.Cfg.General.Duplicate {
+		v, err = origConn.Do("SETEX", key, value, val)
+		if err != nil {
+			return nil, errors.New("SETEX : err when set duplicate: " + err.Error())
+		}
+	}
+	//could ignore all in origin because set on dest already success
+	//del old key in origin
+	if !config.Cfg.General.Duplicate {
+		origConn.Do("DEL", key)
+	}
+
+	strv, ok := v.(string)
+	if ok == false {
+		return nil, errors.New("SETEX : value not string")
+	}
+	return []byte(strv), nil
 }
 
 // EXPIRE
@@ -317,9 +425,11 @@ func moveHash(key string) error {
 					}
 				}
 			}
-			_, err = origConn.Do("DEL", key)
-			if err != nil {
-				return errors.New("err when del on hexist : " + err.Error())
+			if !config.Cfg.General.Duplicate {
+				_, err = origConn.Do("DEL", key)
+				if err != nil {
+					return errors.New("err when del on hexist : " + err.Error())
+				}
 			}
 		}
 	}
@@ -346,10 +456,12 @@ func moveSet(set string) error {
 					return errors.New("err when set on hexist : keys exist as different type : " + err.Error())
 				}
 			}
-			//delete from origin
-			_, err = origConn.Do("DEL", set)
-			if err != nil {
-				return errors.New("err when del on hexist : " + err.Error())
+			if !config.Cfg.General.Duplicate {
+				//delete from origin
+				_, err = origConn.Do("DEL", set)
+				if err != nil {
+					return errors.New("err when del on hexist : " + err.Error())
+				}
 			}
 		}
 	}
