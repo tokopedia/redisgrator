@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-	"log"
 
 	redis "github.com/tokopedia/go-redis-server"
 	"github.com/tokopedia/redisgrator/config"
