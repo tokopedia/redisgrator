@@ -15,7 +15,8 @@ type General struct {
 	SetToDestWhenGet bool
 	MoveHash         bool
 	MoveSet          bool
-	Duplicate 	bool
+	Duplicate        bool
+	MaxGoroutine     int64
 }
 
 type Config struct {

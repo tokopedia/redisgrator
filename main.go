@@ -30,7 +30,7 @@ func main() {
 		log.Fatal(err)
 	}
 	//define redis server handler
-	handler := &handler.RedisHandler{Start: time.Now()}
+	handler := &handler.RedisHandler{Start: time.Now(), GuardAsync: make(chan struct{}, config.Cfg.General.MaxGoroutine)}
 	//define default conf
 	conf := redis.DefaultConfig().Host("0.0.0.0").Port(config.Cfg.General.Port).Handler(handler)
 	//create server with given config

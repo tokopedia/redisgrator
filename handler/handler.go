@@ -14,7 +14,8 @@ import (
 
 type RedisHandler struct {
 	redis.DefaultHandler
-	Start time.Time
+	Start      time.Time
+	GuardAsync chan struct{}
 }
 
 // GET 2 side
@@ -25,8 +26,8 @@ func (h *RedisHandler) Get(key string) ([]byte, error) {
 	chOrig := make(chan interface{})
 	chDest := make(chan interface{})
 
-	go getUsingChan(origConn, chOrig, key)
-	go getUsingChan(destConn, chDest, key)
+	go getUsingChan(origConn, chOrig, h.GuardAsync, key)
+	go getUsingChan(destConn, chDest, h.GuardAsync, key)
 
 	// wait channel value.
 	valOrig := <-chOrig
@@ -41,16 +42,22 @@ func (h *RedisHandler) Get(key string) ([]byte, error) {
 		}
 		if config.Cfg.General.Duplicate {
 			go func() {
+				h.GuardAsync <- struct{}{}
+				defer func() { <-h.GuardAsync }()
+
 				//if keys exist in origin move it too destination
 				_, err := destConn.Do("SET", key, valOrig.([]byte))
 				if err != nil {
 					log.Println("SET : " + err.Error())
-					return
 				}
+				return
 			}()
 		}
 		if config.Cfg.General.SetToDestWhenGet && !config.Cfg.General.Duplicate {
 			go func() {
+				h.GuardAsync <- struct{}{}
+				defer func() { <-h.GuardAsync }()
+
 				_, err := origConn.Do("DEL", key)
 				if err != nil {
 					log.Println("DEL : " + err.Error())
@@ -71,8 +78,12 @@ func (h *RedisHandler) Get(key string) ([]byte, error) {
 	return strv, nil
 }
 
-func getUsingChan(rcon rds.Conn, ch chan<- interface{}, key string) {
-	defer close(ch)
+func getUsingChan(rcon rds.Conn, ch chan<- interface{}, guard chan struct{}, key string) {
+	guard <- struct{}{}
+	defer func() {
+		close(ch)
+		<-guard
+	}()
 
 	v, err := rcon.Do("GET", key)
 	if err != nil {
@@ -93,8 +104,8 @@ func (h *RedisHandler) Del(key string) (int, error) {
 	chOrig := make(chan interface{})
 	chDest := make(chan interface{})
 
-	go delUsingChan(origConn, chOrig, key)
-	go delUsingChan(destConn, chDest, key)
+	go delUsingChan(origConn, chOrig, h.GuardAsync, key)
+	go delUsingChan(destConn, chDest, h.GuardAsync, key)
 
 	// wait channel value.
 	valOrig := <-chOrig
@@ -121,8 +132,12 @@ func (h *RedisHandler) Del(key string) (int, error) {
 	return intv, nil
 }
 
-func delUsingChan(rcon rds.Conn, ch chan<- interface{}, key string) {
-	defer close(ch)
+func delUsingChan(rcon rds.Conn, ch chan<- interface{}, guard chan struct{}, key string) {
+	guard <- struct{}{}
+	defer func() {
+		close(ch)
+		<-guard
+	}()
 
 	v, err := rcon.Do("DEL", key)
 	if err != nil {
@@ -147,6 +162,9 @@ func (h *RedisHandler) Set(key string, value []byte) ([]byte, error) {
 
 	if config.Cfg.General.Duplicate {
 		go func() {
+			h.GuardAsync <- struct{}{}
+			defer func() { <-h.GuardAsync }()
+
 			v, err = origConn.Do("SET", key, value)
 			if err != nil {
 				log.Println("SET : err when set duplicate: " + err.Error())
@@ -158,6 +176,9 @@ func (h *RedisHandler) Set(key string, value []byte) ([]byte, error) {
 	//del old key in origin
 	if !config.Cfg.General.Duplicate {
 		go func() {
+			h.GuardAsync <- struct{}{}
+			defer func() { <-h.GuardAsync }()
+
 			origConn.Do("DEL", key)
 			return
 		}()
@@ -171,15 +192,15 @@ func (h *RedisHandler) Set(key string, value []byte) ([]byte, error) {
 }
 
 // HEXISTS 2 side
-func (h *RedisHandler) Hexistsu(key, field string) (int, error) {
+func (h *RedisHandler) Hexists(key, field string) (int, error) {
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
 
 	chOrig := make(chan interface{})
 	chDest := make(chan interface{})
 
-	go hexistsUsingChan(origConn, chOrig, key, field)
-	go hexistsUsingChan(destConn, chDest, key, field)
+	go hexistsUsingChan(origConn, chOrig, h.GuardAsync, key, field)
+	go hexistsUsingChan(destConn, chDest, h.GuardAsync, key, field)
 
 	// wait channel value.
 	valOrig := <-chOrig
@@ -196,6 +217,9 @@ func (h *RedisHandler) Hexistsu(key, field string) (int, error) {
 		}
 		//if this hash is in origin move it to destination
 		go func() {
+			h.GuardAsync <- struct{}{}
+			defer func() { <-h.GuardAsync }()
+
 			err := moveHash(key)
 			if err != nil {
 				log.Println(err)
@@ -215,8 +239,12 @@ func (h *RedisHandler) Hexistsu(key, field string) (int, error) {
 	return intv, nil
 }
 
-func hexistsUsingChan(rcon rds.Conn, ch chan<- interface{}, key, field string) {
-	defer close(ch)
+func hexistsUsingChan(rcon rds.Conn, ch chan<- interface{}, guard chan struct{}, key, field string) {
+	guard <- struct{}{}
+	defer func() {
+		close(ch)
+		<-guard
+	}()
 
 	v, err := rcon.Do("HEXISTS", key, field)
 	if err != nil {
@@ -237,8 +265,8 @@ func (h *RedisHandler) Hget(key string, value []byte) ([]byte, error) {
 	chOrig := make(chan interface{})
 	chDest := make(chan interface{})
 
-	go hgetUsingChan(origConn, chOrig, key, value)
-	go hgetUsingChan(destConn, chDest, key, value)
+	go hgetUsingChan(origConn, chOrig, h.GuardAsync, key, value)
+	go hgetUsingChan(destConn, chDest, h.GuardAsync, key, value)
 
 	// wait channel value.
 	valOrig := <-chOrig
@@ -253,6 +281,9 @@ func (h *RedisHandler) Hget(key string, value []byte) ([]byte, error) {
 		}
 		if config.Cfg.General.SetToDestWhenGet {
 			go func() {
+				h.GuardAsync <- struct{}{}
+				defer func() { <-h.GuardAsync }()
+
 				//if this hash is in origin move it to destination
 				err := moveHash(key)
 				if err != nil {
@@ -272,8 +303,12 @@ func (h *RedisHandler) Hget(key string, value []byte) ([]byte, error) {
 	return []byte(strv), nil
 }
 
-func hgetUsingChan(rcon rds.Conn, ch chan<- interface{}, key string, value []byte) {
-	defer close(ch)
+func hgetUsingChan(rcon rds.Conn, ch chan<- interface{}, guard chan struct{}, key string, value []byte) {
+	guard <- struct{}{}
+	defer func() {
+		close(ch)
+		<-guard
+	}()
 
 	v, err := rcon.Do("HGET", key, value)
 	if err != nil {
@@ -309,6 +344,9 @@ func (h *RedisHandler) Hset(key, field string, value []byte) (int, error) {
 
 	if config.Cfg.General.Duplicate {
 		go func() {
+			h.GuardAsync <- struct{}{}
+			defer func() { <-h.GuardAsync }()
+
 			v, err = origConn.Do("HSET", key, field, value)
 			if err != nil {
 				log.Println("HSET : err when set : " + err.Error())
@@ -333,8 +371,8 @@ func (h *RedisHandler) Sismember(set, field string) (int, error) {
 	chOrig := make(chan interface{})
 	chDest := make(chan interface{})
 
-	go sismemberUsingChan(origConn, chOrig, set, field)
-	go sismemberUsingChan(destConn, chDest, set, field)
+	go sismemberUsingChan(origConn, chOrig, h.GuardAsync, set, field)
+	go sismemberUsingChan(destConn, chDest, h.GuardAsync, set, field)
 
 	// wait channel value.
 	valOrig := <-chOrig
@@ -349,6 +387,9 @@ func (h *RedisHandler) Sismember(set, field string) (int, error) {
 		} else {
 			//move all set
 			go func() {
+				h.GuardAsync <- struct{}{}
+				defer func() { <-h.GuardAsync }()
+
 				err := moveSet(set)
 				if err != nil {
 					log.Println(err)
@@ -367,8 +408,12 @@ func (h *RedisHandler) Sismember(set, field string) (int, error) {
 	return intv, nil
 }
 
-func sismemberUsingChan(rcon rds.Conn, ch chan<- interface{}, set, field string) {
-	defer close(ch)
+func sismemberUsingChan(rcon rds.Conn, ch chan<- interface{}, guard chan struct{}, set, field string) {
+	guard <- struct{}{}
+	defer func() {
+		close(ch)
+		<-guard
+	}()
 
 	v, err := rcon.Do("SISMEMBER", set, field)
 	if err != nil {
@@ -389,8 +434,8 @@ func (h *RedisHandler) Smembers(set string) ([]interface{}, error) {
 	chOrig := make(chan interface{})
 	chDest := make(chan interface{})
 
-	go smemberUsingChan(origConn, chOrig, set)
-	go smemberUsingChan(destConn, chDest, set)
+	go smemberUsingChan(origConn, chOrig, h.GuardAsync, set)
+	go smemberUsingChan(destConn, chDest, h.GuardAsync, set)
 
 	// wait channel value.
 	valOrig := <-chOrig
@@ -406,6 +451,9 @@ func (h *RedisHandler) Smembers(set string) ([]interface{}, error) {
 		} else {
 			//move all set
 			go func() {
+				h.GuardAsync <- struct{}{}
+				defer func() { <-h.GuardAsync }()
+
 				err := moveSet(set)
 				if err != nil {
 					log.Println(err)
@@ -423,8 +471,12 @@ func (h *RedisHandler) Smembers(set string) ([]interface{}, error) {
 	return result, nil
 }
 
-func smemberUsingChan(rcon rds.Conn, ch chan<- interface{}, set string) {
-	defer close(ch)
+func smemberUsingChan(rcon rds.Conn, ch chan<- interface{}, guard chan struct{}, set string) {
+	guard <- struct{}{}
+	defer func() {
+		close(ch)
+		<-guard
+	}()
 
 	v, err := rcon.Do("SMEMBERS", set)
 	if err != nil {
@@ -460,6 +512,9 @@ func (h *RedisHandler) Sadd(set string, val []byte) (int, error) {
 	}
 	if config.Cfg.General.Duplicate {
 		go func() {
+			h.GuardAsync <- struct{}{}
+			defer func() { <-h.GuardAsync }()
+
 			v, err = origConn.Do("SADD", set, val)
 			if err != nil {
 				log.Println("SADD : err when check exist in origin : " + err.Error())
@@ -488,6 +543,9 @@ func (h *RedisHandler) Srem(set string, val []byte) (int, error) {
 
 	if config.Cfg.General.Duplicate {
 		go func() {
+			h.GuardAsync <- struct{}{}
+			defer func() { <-h.GuardAsync }()
+
 			v, err = origConn.Do("SREM", set, val)
 			if err != nil {
 				log.Println("SREM : err when check exist in origin : " + err.Error())
@@ -515,6 +573,9 @@ func (h *RedisHandler) Setex(key string, value int, val string) ([]byte, error) 
 
 	if config.Cfg.General.Duplicate {
 		go func() {
+			h.GuardAsync <- struct{}{}
+			defer func() { <-h.GuardAsync }()
+
 			v, err = origConn.Do("SETEX", key, value, val)
 			if err != nil {
 				log.Println("SETEX : err when set duplicate: " + err.Error())
@@ -525,6 +586,9 @@ func (h *RedisHandler) Setex(key string, value int, val string) ([]byte, error) 
 	//del old key in origin
 	if !config.Cfg.General.Duplicate {
 		go func() {
+			h.GuardAsync <- struct{}{}
+			defer func() { <-h.GuardAsync }()
+
 			origConn.Do("DEL", key)
 			return
 		}()
