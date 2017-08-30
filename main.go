@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/eapache/go-resiliency/semaphore"
 	"github.com/google/gops/agent"
 	redis "github.com/tokopedia/go-redis-server"
 	"github.com/tokopedia/redisgrator/config"
@@ -30,7 +31,10 @@ func main() {
 		log.Fatal(err)
 	}
 	//define redis server handler
-	handler := &handler.RedisHandler{Start: time.Now(), GuardAsync: make(chan struct{}, config.Cfg.General.MaxGoroutine)}
+	handler := &handler.RedisHandler{
+		Start: time.Now(),
+		Sema:  semaphore.New(config.Cfg.General.MaxSema, time.Duration(config.Cfg.General.TimeoutSema)*time.Second),
+	}
 	//define default conf
 	conf := redis.DefaultConfig().Host("0.0.0.0").Port(config.Cfg.General.Port).Handler(handler)
 	//create server with given config

@@ -16,7 +16,8 @@ type General struct {
 	MoveHash         bool
 	MoveSet          bool
 	Duplicate        bool
-	MaxGoroutine     int64
+	MaxSema          int
+	TimeoutSema      int64
 }
 
 type Config struct {
