@@ -21,11 +21,11 @@ type RedisHandler struct {
 
 // GET 2 side
 func (h *RedisHandler) Get(key string) ([]byte, error) {
-	defer h.Sema.Release()
 	err := h.Sema.Acquire()
 	if err != nil {
 		return nil, err
 	}
+	defer h.Sema.Release()
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -95,11 +95,11 @@ func getUsingChan(rcon rds.Conn, ch chan<- interface{}, key string) {
 
 // DEL 2 side
 func (h *RedisHandler) Del(key string) (int, error) {
-	defer h.Sema.Release()
 	err := h.Sema.Acquire()
 	if err != nil {
 		return 0, err
 	}
+	defer h.Sema.Release()
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -151,11 +151,11 @@ func delUsingChan(rcon rds.Conn, ch chan<- interface{}, key string) {
 
 // SET
 func (h *RedisHandler) Set(key string, value []byte) ([]byte, error) {
-	defer h.Sema.Release()
 	err := h.Sema.Acquire()
 	if err != nil {
 		return nil, err
 	}
+	defer h.Sema.Release()
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -192,11 +192,11 @@ func (h *RedisHandler) Set(key string, value []byte) ([]byte, error) {
 
 // HEXISTS 2 side
 func (h *RedisHandler) Hexists(key, field string) (int, error) {
-	defer h.Sema.Release()
 	err := h.Sema.Acquire()
 	if err != nil {
 		return 0, err
 	}
+	defer h.Sema.Release()
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -257,11 +257,11 @@ func hexistsUsingChan(rcon rds.Conn, ch chan<- interface{}, key, field string) {
 
 // HGET 2 side
 func (h *RedisHandler) Hget(key string, value []byte) ([]byte, error) {
-	defer h.Sema.Release()
 	err := h.Sema.Acquire()
 	if err != nil {
 		return nil, err
 	}
+	defer h.Sema.Release()
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -320,11 +320,11 @@ func hgetUsingChan(rcon rds.Conn, ch chan<- interface{}, key string, value []byt
 
 // HSET
 func (h *RedisHandler) Hset(key, field string, value []byte) (int, error) {
-	defer h.Sema.Release()
 	err := h.Sema.Acquire()
 	if err != nil {
 		return 0, err
 	}
+	defer h.Sema.Release()
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -365,11 +365,11 @@ func (h *RedisHandler) Hset(key, field string, value []byte) (int, error) {
 
 // SISMEMBER 2 side
 func (h *RedisHandler) Sismember(set, field string) (int, error) {
-	defer h.Sema.Release()
 	err := h.Sema.Acquire()
 	if err != nil {
 		return 0, err
 	}
+	defer h.Sema.Release()
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -427,11 +427,11 @@ func sismemberUsingChan(rcon rds.Conn, ch chan<- interface{}, set, field string)
 
 // SMEMBERS 2 side
 func (h *RedisHandler) Smembers(set string) ([]interface{}, error) {
-	defer h.Sema.Release()
 	err := h.Sema.Acquire()
 	if err != nil {
 		return nil, err
 	}
+	defer h.Sema.Release()
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -489,11 +489,11 @@ func smemberUsingChan(rcon rds.Conn, ch chan<- interface{}, set string) {
 
 // SADD
 func (h *RedisHandler) Sadd(set string, val []byte) (int, error) {
-	defer h.Sema.Release()
 	err := h.Sema.Acquire()
 	if err != nil {
 		return 0, err
 	}
+	defer h.Sema.Release()
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -534,11 +534,11 @@ func (h *RedisHandler) Sadd(set string, val []byte) (int, error) {
 
 // SREM
 func (h *RedisHandler) Srem(set string, val []byte) (int, error) {
-	defer h.Sema.Release()
 	err := h.Sema.Acquire()
 	if err != nil {
 		return 0, err
 	}
+	defer h.Sema.Release()
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -567,11 +567,11 @@ func (h *RedisHandler) Srem(set string, val []byte) (int, error) {
 
 // SETEX
 func (h *RedisHandler) Setex(key string, value int, val string) ([]byte, error) {
-	defer h.Sema.Release()
 	err := h.Sema.Acquire()
 	if err != nil {
 		return nil, err
 	}
+	defer h.Sema.Release()
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -607,11 +607,11 @@ func (h *RedisHandler) Setex(key string, value int, val string) ([]byte, error) 
 
 // EXPIRE
 func (h *RedisHandler) Expire(key string, value int) (int, error) {
-	defer h.Sema.Release()
 	err := h.Sema.Acquire()
 	if err != nil {
 		return 0, err
 	}
+	defer h.Sema.Release()
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
