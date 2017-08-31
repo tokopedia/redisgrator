@@ -15,7 +15,9 @@ type General struct {
 	SetToDestWhenGet bool
 	MoveHash         bool
 	MoveSet          bool
-	Duplicate 	bool
+	Duplicate        bool
+	MaxSema          int
+	TimeoutSema      int64
 }
 
 type Config struct {
@@ -27,6 +29,9 @@ var Cfg Config
 
 func ReadConfig(path string) bool {
 	err := gcfg.ReadFileInto(&Cfg, path+"config.ini")
+	if err != nil {
+		return false
+	}
 	log.Printf("%+v", Cfg)
 	if err = Cfg.Validate(); err != nil {
 		log.Println("failed read config ", err.Error())
