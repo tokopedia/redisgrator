@@ -36,7 +36,7 @@ func (h *RedisHandler) Get(key string) ([]byte, error) {
 	go getUsingChan(origConn, chOrig, key)
 	go getUsingChan(destConn, chDest, key)
 
-	// wait channel value.
+	// wait completion.
 	valOrig := <-chOrig
 	valDest := <-chDest
 
@@ -44,27 +44,26 @@ func (h *RedisHandler) Get(key string) ([]byte, error) {
 	valExist := valDest
 
 	if valDest == nil {
-		if valOrig == nil {
-			return nil, errors.New("GET : keys not found") //both nil, key not found
-		}
-		if config.Cfg.General.Duplicate {
-			go func() {
-				//if keys exist in origin move it too destination
-				_, err := destConn.Do("SET", key, valOrig.([]byte))
-				if err != nil {
-					log.Println("SET : " + err.Error())
-				}
-				return
-			}()
-		}
-		if config.Cfg.General.SetToDestWhenGet && !config.Cfg.General.Duplicate {
-			go func() {
-				_, err := origConn.Do("DEL", key)
-				if err != nil {
-					log.Println("DEL : " + err.Error())
-				}
-				return
-			}()
+		if valOrig != nil {
+			if config.Cfg.General.Duplicate {
+				go func() {
+					//if keys exist in origin move it too destination
+					_, err := destConn.Do("SET", key, valOrig.([]byte))
+					if err != nil {
+						log.Println("SET : " + err.Error())
+					}
+					return
+				}()
+			}
+			if config.Cfg.General.SetToDestWhenGet && !config.Cfg.General.Duplicate {
+				go func() {
+					_, err := origConn.Do("DEL", key)
+					if err != nil {
+						log.Println("DEL : " + err.Error())
+					}
+					return
+				}()
+			}
 		}
 		valExist = valOrig // set exist value
 	}
@@ -79,6 +78,7 @@ func (h *RedisHandler) Get(key string) ([]byte, error) {
 	return strv, nil
 }
 
+// get func channel
 func getUsingChan(rcon rds.Conn, ch chan<- interface{}, key string) {
 	defer close(ch)
 
@@ -110,24 +110,22 @@ func (h *RedisHandler) Del(key string) (int, error) {
 	go delUsingChan(origConn, chOrig, key)
 	go delUsingChan(destConn, chDest, key)
 
-	// wait channel value.
+	// wait completion.
 	valOrig := <-chOrig
 	valDest := <-chDest
 
 	// default exist value
 	valExist := valDest
 
-	int64v, ok := valDest.(int64)
-	if int64v == 0 {
-		int64v, ok = valOrig.(int64)
-		if int64v == 0 {
-			return 0, errors.New("DEL : keys not found") //both zero, key not found
+	if valDest == nil {
+		if valOrig == nil {
+			return 0, errors.New("DEL : keys not found") //both nil, key not found
 		}
 		valExist = valOrig // set exist value
 	}
 
 	//check first if it is not internal error
-	int64v, ok = valExist.(int64)
+	int64v, ok := valExist.(int64)
 	if ok == false {
 		return 0, errors.New("DEL : value not int from destination")
 	}
@@ -135,6 +133,7 @@ func (h *RedisHandler) Del(key string) (int, error) {
 	return intv, nil
 }
 
+// del func channel
 func delUsingChan(rcon rds.Conn, ch chan<- interface{}, key string) {
 	defer close(ch)
 
@@ -207,33 +206,29 @@ func (h *RedisHandler) Hexists(key, field string) (int, error) {
 	go hexistsUsingChan(origConn, chOrig, key, field)
 	go hexistsUsingChan(destConn, chDest, key, field)
 
-	// wait channel value.
+	// wait completion
 	valOrig := <-chOrig
 	valDest := <-chDest
 
 	// default exist value
 	valExist := valDest
 
-	int64v, ok := valDest.(int64)
-	if int64v == 0 {
-		int64v, ok = valOrig.(int64)
-		if int64v == 0 {
-			return 0, errors.New("HEXISTS : keys not found") //both zero, key not found
+	if valDest == nil || valDest.(int64) == 0 {
+		if valOrig != nil && valOrig.(int64) == 1 {
+			//if this hash is in origin move it to destination
+			go func() {
+				err := moveHash(key)
+				if err != nil {
+					log.Println(err)
+				}
+				return
+			}()
 		}
-		//if this hash is in origin move it to destination
-		go func() {
-			err := moveHash(key)
-			if err != nil {
-				log.Println(err)
-			}
-			return
-		}()
-
 		valExist = valOrig // set exist value
 	}
 
 	//check first is it really not error from destination
-	int64v, ok = valExist.(int64)
+	int64v, ok := valExist.(int64)
 	if ok == false {
 		return 0, errors.New("HEXISTS : value not int from destination")
 	}
@@ -241,6 +236,7 @@ func (h *RedisHandler) Hexists(key, field string) (int, error) {
 	return intv, nil
 }
 
+// hexists func channel
 func hexistsUsingChan(rcon rds.Conn, ch chan<- interface{}, key, field string) {
 	defer close(ch)
 
@@ -272,7 +268,7 @@ func (h *RedisHandler) Hget(key string, value []byte) ([]byte, error) {
 	go hgetUsingChan(origConn, chOrig, key, value)
 	go hgetUsingChan(destConn, chDest, key, value)
 
-	// wait channel value.
+	// wait completion.
 	valOrig := <-chOrig
 	valDest := <-chDest
 
@@ -280,18 +276,17 @@ func (h *RedisHandler) Hget(key string, value []byte) ([]byte, error) {
 	valExist := valDest
 
 	if valDest == nil {
-		if valOrig == nil {
-			return nil, errors.New("HGET : key not found") // both nil, key not found
-		}
-		if config.Cfg.General.SetToDestWhenGet {
-			go func() {
-				//if this hash is in origin move it to destination
-				err := moveHash(key)
-				if err != nil {
-					log.Println(err)
-				}
-				return
-			}()
+		if valOrig != nil {
+			if config.Cfg.General.SetToDestWhenGet {
+				go func() {
+					//if this hash is in origin move it to destination
+					err := moveHash(key)
+					if err != nil {
+						log.Println(err)
+					}
+					return
+				}()
+			}
 		}
 		valExist = valOrig // set exist value
 	}
@@ -299,11 +294,12 @@ func (h *RedisHandler) Hget(key string, value []byte) ([]byte, error) {
 	bytv, ok := valExist.([]byte)
 	strv := string(bytv)
 	if ok == false {
-		return nil, errors.New("HGET : value not string")
+		return nil, nil
 	}
 	return []byte(strv), nil
 }
 
+// hget func channel
 func hgetUsingChan(rcon rds.Conn, ch chan<- interface{}, key string, value []byte) {
 	defer close(ch)
 
@@ -311,6 +307,73 @@ func hgetUsingChan(rcon rds.Conn, ch chan<- interface{}, key string, value []byt
 	if err != nil {
 		if err != rds.ErrNil {
 			log.Println("HGET : " + err.Error())
+		}
+		return
+	}
+	ch <- v
+	return
+}
+
+// HGETALL 2 side
+func (h *RedisHandler) Hgetall(key string) ([]interface{}, error) {
+	err := h.Sema.Acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer h.Sema.Release()
+
+	origConn := connection.RedisPoolConnection.Origin.Get()
+	destConn := connection.RedisPoolConnection.Destination.Get()
+
+	chOrig := make(chan interface{})
+	chDest := make(chan interface{})
+
+	go hgetallUsingChan(origConn, chOrig, key)
+	go hgetallUsingChan(destConn, chDest, key)
+
+	// wait completion.
+	valOrig := <-chOrig
+	valDest := <-chDest
+
+	// default exist value
+	valExist := valDest
+	var empty []interface{}
+
+	valDestArr, ok := valDest.([]interface{})
+	if valDest == nil || !ok || len(valDestArr) == 0 {
+		valOrigArr, ok := valOrig.([]interface{})
+		if valOrig == nil || !ok || len(valOrigArr) == 0 {
+			return empty, errors.New("HGETALL : keys not found")
+		} else {
+			if config.Cfg.General.SetToDestWhenGet {
+				go func() {
+					//if this hash is in origin move it to destination
+					err := moveHash(key)
+					if err != nil {
+						log.Println(err)
+					}
+					return
+				}()
+			}
+		}
+		valExist = valOrig // set exist value
+	}
+
+	result, ok := valExist.([]interface{})
+	if ok == false {
+		return empty, errors.New("HGETALL : value not list")
+	}
+	return result, nil
+}
+
+// hgetall func channel
+func hgetallUsingChan(rcon rds.Conn, ch chan<- interface{}, key string) {
+	defer close(ch)
+
+	v, err := rcon.Do("HGETALL", key)
+	if err != nil {
+		if err != rds.ErrNil {
+			log.Println("HGETALL : " + err.Error())
 		}
 		return
 	}
@@ -380,15 +443,15 @@ func (h *RedisHandler) Sismember(set, field string) (int, error) {
 	go sismemberUsingChan(origConn, chOrig, set, field)
 	go sismemberUsingChan(destConn, chDest, set, field)
 
-	// wait channel value.
+	// wait completion.
 	valOrig := <-chOrig
 	valDest := <-chDest
 
 	// default exist value
 	valExist := valDest
 
-	if valDest == nil {
-		if valOrig == nil {
+	if valDest == nil || valDest.(int64) == 0 {
+		if valOrig == nil || valOrig.(int64) == 0 {
 			return 0, nil // both nil, key not found
 		} else {
 			//move all set
@@ -411,6 +474,7 @@ func (h *RedisHandler) Sismember(set, field string) (int, error) {
 	return intv, nil
 }
 
+// sismember func channel
 func sismemberUsingChan(rcon rds.Conn, ch chan<- interface{}, set, field string) {
 	defer close(ch)
 
@@ -442,7 +506,7 @@ func (h *RedisHandler) Smembers(set string) ([]interface{}, error) {
 	go smemberUsingChan(origConn, chOrig, set)
 	go smemberUsingChan(destConn, chDest, set)
 
-	// wait channel value.
+	// wait completion.
 	valOrig := <-chOrig
 	valDest := <-chDest
 
@@ -450,9 +514,11 @@ func (h *RedisHandler) Smembers(set string) ([]interface{}, error) {
 	valExist := valDest
 	var empty []interface{}
 
-	if valDest == nil {
-		if valOrig == nil {
-			return empty, nil // both nil, key not found
+	valDestArr, ok := valDest.([]interface{})
+	if valDest == nil || !ok || len(valDestArr) == 0 {
+		valOrigArr, ok := valOrig.([]interface{})
+		if valOrig == nil || !ok || len(valOrigArr) == 0 {
+			return empty, errors.New("SMEMBERS : keys not found") // both nil, key not found
 		} else {
 			//move all set
 			go func() {
@@ -468,11 +534,12 @@ func (h *RedisHandler) Smembers(set string) ([]interface{}, error) {
 
 	result, ok := valExist.([]interface{})
 	if ok == false {
-		return empty, errors.New("SMEMBERS : value not int")
+		return empty, errors.New("SMEMBERS : value not list")
 	}
 	return result, nil
 }
 
+// smembers func channel
 func smemberUsingChan(rcon rds.Conn, ch chan<- interface{}, set string) {
 	defer close(ch)
 
@@ -615,43 +682,48 @@ func (h *RedisHandler) Expire(key string, value int) (int, error) {
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
-	v, err := origConn.Do("EXPIRE", key, value)
-	if err != nil {
-		return 0, errors.New("EXPIRE : err when check exist in origin : " + err.Error())
-	}
-	if v.(int64) == 1 {
-		int64v, ok := v.(int64)
-		if ok == false {
-			return 0, errors.New("EXPIRE : value not int")
+
+	chOrig := make(chan interface{})
+	chDest := make(chan interface{})
+
+	go expireUsingChan(origConn, chOrig, key, value)
+	go expireUsingChan(destConn, chDest, key, value)
+
+	// wait completion.
+	valOrig := <-chOrig
+	valDest := <-chDest
+
+	// default exist value
+	valExist := valDest
+
+	if valDest == nil || valDest.(int64) == 0 {
+		if valOrig == nil {
+			return 0, errors.New("EXPIRE : keys not found") //both nil, key not found
 		}
-		intv := int(int64v)
-		return intv, err
+		valExist = valOrig
 	}
 
-	if v.(int64) == 0 {
-		v, err = destConn.Do("EXPIRE", key, value)
-		if err != nil {
-			return 0, errors.New("EXPIRE : err when check exist in origin : " + err.Error())
-		}
-		if v.(int64) == 1 || v.(int64) == 0 {
-			int64v, ok := v.(int64)
-			if ok == false {
-				return 0, errors.New("EXPIRE : value not int")
-			}
-			intv := int(int64v)
-			return intv, err
-		}
-	}
-
-	if err != nil {
-		return 0, errors.New("EXPIRE : err when set : " + err.Error())
-	}
-	int64v, ok := v.(int64)
+	int64v, ok := valExist.(int64)
 	intv := int(int64v)
 	if ok == false {
 		return 0, errors.New("EXPIRE : value not int")
 	}
 	return intv, nil
+}
+
+// expire func channel
+func expireUsingChan(rcon rds.Conn, ch chan<- interface{}, key string, value int) {
+	defer close(ch)
+
+	v, err := rcon.Do("EXPIRE", key, value)
+	if err != nil {
+		if err != rds.ErrNil {
+			log.Println("EXPIRE : " + err.Error())
+		}
+		return
+	}
+	ch <- v
+	return
 }
 
 // INFO
