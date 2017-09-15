@@ -46,23 +46,23 @@ func (h *RedisHandler) Get(key string) ([]byte, error) {
 	if valDest == nil {
 		if valOrig != nil {
 			if config.Cfg.General.Duplicate {
-				go func() {
+				go func(skey string, svalOrig interface{}) {
 					//if keys exist in origin move it too destination
-					_, err := destConn.Do("SET", key, valOrig.([]byte))
+					_, err := destConn.Do("SET", skey, svalOrig.([]byte))
 					if err != nil {
 						log.Println("SET : " + err.Error())
 					}
 					return
-				}()
+				}(key, valOrig)
 			}
 			if config.Cfg.General.SetToDestWhenGet && !config.Cfg.General.Duplicate {
-				go func() {
-					_, err := origConn.Do("DEL", key)
+				go func(skey string) {
+					_, err := origConn.Do("DEL", skey)
 					if err != nil {
 						log.Println("DEL : " + err.Error())
 					}
 					return
-				}()
+				}(key)
 			}
 		}
 		valExist = valOrig // set exist value
@@ -165,21 +165,21 @@ func (h *RedisHandler) Set(key string, value []byte) ([]byte, error) {
 	}
 
 	if config.Cfg.General.Duplicate {
-		go func() {
-			v, err = origConn.Do("SET", key, value)
+		go func(skey string, svalue []byte) {
+			v, err = origConn.Do("SET", skey, svalue)
 			if err != nil {
 				log.Println("SET : err when set duplicate: " + err.Error())
 			}
 			return
-		}()
+		}(key, value)
 	}
 	//could ignore all in origin because set on dest already success
 	//del old key in origin
 	if !config.Cfg.General.Duplicate {
-		go func() {
-			origConn.Do("DEL", key)
+		go func(skey string) {
+			origConn.Do("DEL", skey)
 			return
-		}()
+		}(key)
 	}
 
 	strv, ok := v.(string)
@@ -216,13 +216,13 @@ func (h *RedisHandler) Hexists(key, field string) (int, error) {
 	if valDest == nil || valDest.(int64) == 0 {
 		if valOrig != nil && valOrig.(int64) == 1 {
 			//if this hash is in origin move it to destination
-			go func() {
-				err := moveHash(key)
+			go func(skey string) {
+				err := moveHash(skey)
 				if err != nil {
 					log.Println(err)
 				}
 				return
-			}()
+			}(key)
 		}
 		valExist = valOrig // set exist value
 	}
@@ -278,14 +278,14 @@ func (h *RedisHandler) Hget(key string, value []byte) ([]byte, error) {
 	if valDest == nil {
 		if valOrig != nil {
 			if config.Cfg.General.SetToDestWhenGet {
-				go func() {
+				go func(skey string) {
 					//if this hash is in origin move it to destination
-					err := moveHash(key)
+					err := moveHash(skey)
 					if err != nil {
 						log.Println(err)
 					}
 					return
-				}()
+				}(key)
 			}
 		}
 		valExist = valOrig // set exist value
@@ -346,14 +346,14 @@ func (h *RedisHandler) Hgetall(key string) ([]interface{}, error) {
 			return empty, errors.New("HGETALL : keys not found")
 		} else {
 			if config.Cfg.General.SetToDestWhenGet {
-				go func() {
+				go func(skey string) {
 					//if this hash is in origin move it to destination
-					err := moveHash(key)
+					err := moveHash(skey)
 					if err != nil {
 						log.Println(err)
 					}
 					return
-				}()
+				}(key)
 			}
 		}
 		valExist = valOrig // set exist value
@@ -409,13 +409,13 @@ func (h *RedisHandler) Hset(key, field string, value []byte) (int, error) {
 	}
 
 	if config.Cfg.General.Duplicate {
-		go func() {
-			v, err = origConn.Do("HSET", key, field, value)
+		go func(skey, sfield string, svalue []byte) {
+			v, err = origConn.Do("HSET", skey, sfield, svalue)
 			if err != nil {
 				log.Println("HSET : err when set : " + err.Error())
 			}
 			return
-		}()
+		}(key, field, value)
 	}
 
 	int64v, ok := v.(int64)
@@ -455,13 +455,13 @@ func (h *RedisHandler) Sismember(set, field string) (int, error) {
 			return 0, nil // both nil, key not found
 		} else {
 			//move all set
-			go func() {
-				err := moveSet(set)
+			go func(sset string) {
+				err := moveSet(sset)
 				if err != nil {
 					log.Println(err)
 				}
 				return
-			}()
+			}(set)
 		}
 		valExist = valOrig
 	}
@@ -521,13 +521,13 @@ func (h *RedisHandler) Smembers(set string) ([]interface{}, error) {
 			return empty, errors.New("SMEMBERS : keys not found") // both nil, key not found
 		} else {
 			//move all set
-			go func() {
-				err := moveSet(set)
+			go func(sset string) {
+				err := moveSet(sset)
 				if err != nil {
 					log.Println(err)
 				}
 				return
-			}()
+			}(set)
 		}
 		valExist = valOrig // set exist value
 	}
@@ -582,13 +582,13 @@ func (h *RedisHandler) Sadd(set string, val []byte) (int, error) {
 		return 0, errors.New("SADD : err when check exist in origin : " + err.Error())
 	}
 	if config.Cfg.General.Duplicate {
-		go func() {
-			v, err = origConn.Do("SADD", set, val)
+		go func(sset string, sval []byte) {
+			v, err = origConn.Do("SADD", sset, sval)
 			if err != nil {
 				log.Println("SADD : err when check exist in origin : " + err.Error())
 			}
 			return
-		}()
+		}(set, val)
 	}
 
 	int64v, ok := v.(int64)
@@ -616,13 +616,13 @@ func (h *RedisHandler) Srem(set string, val []byte) (int, error) {
 	}
 
 	if config.Cfg.General.Duplicate {
-		go func() {
-			v, err = origConn.Do("SREM", set, val)
+		go func(sset string, sval []byte) {
+			v, err = origConn.Do("SREM", sset, sval)
 			if err != nil {
 				log.Println("SREM : err when check exist in origin : " + err.Error())
 			}
 			return
-		}()
+		}(set, val)
 	}
 	int64v, ok := v.(int64)
 	intv := int(int64v)
@@ -649,20 +649,20 @@ func (h *RedisHandler) Setex(key string, value int, val string) ([]byte, error) 
 	}
 
 	if config.Cfg.General.Duplicate {
-		go func() {
-			v, err = origConn.Do("SETEX", key, value, val)
+		go func(skey string, svalue int, sval string) {
+			v, err = origConn.Do("SETEX", skey, svalue, sval)
 			if err != nil {
 				log.Println("SETEX : err when set duplicate: " + err.Error())
 			}
-		}()
+		}(key, value, val)
 	}
 	//could ignore all in origin because set on dest already success
 	//del old key in origin
 	if !config.Cfg.General.Duplicate {
-		go func() {
-			origConn.Do("DEL", key)
+		go func(skey string) {
+			origConn.Do("DEL", skey)
 			return
-		}()
+		}(key)
 	}
 
 	strv, ok := v.(string)
