@@ -26,6 +26,7 @@ func (h *RedisHandler) Get(key string) ([]byte, error) {
 		return nil, err
 	}
 	defer h.Sema.Release()
+	log.Println("GET", key)
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -100,6 +101,7 @@ func (h *RedisHandler) Del(key string) (int, error) {
 		return 0, err
 	}
 	defer h.Sema.Release()
+	log.Println("DEL", key)
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -155,6 +157,7 @@ func (h *RedisHandler) Set(key string, value []byte) ([]byte, error) {
 		return nil, err
 	}
 	defer h.Sema.Release()
+	log.Println("SET", key, string(value))
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -196,6 +199,7 @@ func (h *RedisHandler) Hexists(key, field string) (int, error) {
 		return 0, err
 	}
 	defer h.Sema.Release()
+	log.Println("HEXISTS", key, field)
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -258,6 +262,7 @@ func (h *RedisHandler) Hget(key string, value []byte) ([]byte, error) {
 		return nil, err
 	}
 	defer h.Sema.Release()
+	log.Println("HGET", key, string(value))
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -321,6 +326,7 @@ func (h *RedisHandler) Hgetall(key string) ([]interface{}, error) {
 		return nil, err
 	}
 	defer h.Sema.Release()
+	log.Println("HGETALL", key)
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -388,6 +394,7 @@ func (h *RedisHandler) Hset(key, field string, value []byte) (int, error) {
 		return 0, err
 	}
 	defer h.Sema.Release()
+	log.Println("HSET", key, field, string(value))
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -433,6 +440,8 @@ func (h *RedisHandler) Sismember(set, field string) (int, error) {
 		return 0, err
 	}
 	defer h.Sema.Release()
+
+	log.Println("SISMEMBER", set, field)
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -496,6 +505,7 @@ func (h *RedisHandler) Smembers(set string) ([]interface{}, error) {
 		return nil, err
 	}
 	defer h.Sema.Release()
+	log.Println("SMEMBERS", set)
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -561,6 +571,7 @@ func (h *RedisHandler) Sadd(set string, val []byte) (int, error) {
 		return 0, err
 	}
 	defer h.Sema.Release()
+	log.Println("SADD", set, string(val))
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -606,6 +617,7 @@ func (h *RedisHandler) Srem(set string, val []byte) (int, error) {
 		return 0, err
 	}
 	defer h.Sema.Release()
+	log.Println("SREM", set, string(val))
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -639,6 +651,7 @@ func (h *RedisHandler) Setex(key string, value int, val string) ([]byte, error) 
 		return nil, err
 	}
 	defer h.Sema.Release()
+	log.Println("SETEX", key, value, val)
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -679,6 +692,7 @@ func (h *RedisHandler) Expire(key string, value int) (int, error) {
 		return 0, err
 	}
 	defer h.Sema.Release()
+	log.Println("EXPIRE", key, value)
 
 	origConn := connection.RedisPoolConnection.Origin.Get()
 	destConn := connection.RedisPoolConnection.Destination.Get()
@@ -756,6 +770,7 @@ func moveHash(key string) error {
 					if err != nil {
 						return errors.New("err when set on hexist : " + err.Error())
 					}
+					log.Println("INSIDE MOVEHASH HSET", key, valstr, string(arrval[i+1].([]byte)))
 				}
 			}
 			if !config.Cfg.General.Duplicate {
@@ -763,6 +778,7 @@ func moveHash(key string) error {
 				if err != nil {
 					return errors.New("err when del on hexist : " + err.Error())
 				}
+				log.Println("INSIDE MOVEHASH DEL", key)
 			}
 		}
 	}
@@ -788,6 +804,7 @@ func moveSet(set string) error {
 				if err != nil {
 					return errors.New("err when set on hexist : keys exist as different type : " + err.Error())
 				}
+				log.Println("INSIDE MOVESET SADD", set, valstr)
 			}
 			if !config.Cfg.General.Duplicate {
 				//delete from origin
@@ -795,6 +812,7 @@ func moveSet(set string) error {
 				if err != nil {
 					return errors.New("err when del on hexist : " + err.Error())
 				}
+				log.Println("INSIDE MOVESET DEL", set)
 			}
 		}
 	}
